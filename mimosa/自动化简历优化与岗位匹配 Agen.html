@@ -1,0 +1,648 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>智能简历优化与岗位匹配系统</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css">
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      colors: {
+        primary: '#165DFF', secondary: '#36CFC9', neutral: '#F5F7FA', dark: '#1D2129'
+      }
+    }
+  }
+}
+</script>
+<style>
+.card-shadow { box-shadow: 0 10px 30px rgba(0,0,0,0.08); }
+.btn-gradient { background: linear-gradient(135deg, #165DFF 0%, #36CFC9 100%); }
+.btn-gradient:hover { background: linear-gradient(135deg, #0f4cd1 0%, #2db5af 100%); }
+.upload-zone { border: 2px dashed #d1d5db; transition: all 0.3s; }
+.upload-zone:hover, .upload-zone.drag-over { border-color: #165DFF; background: #eff6ff; }
+.step-dot { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 18px; }
+.step-line { flex: 1; height: 3px; background: #e5e7eb; margin: 0 4px; }
+.step-active .step-line, .step-done .step-line { background: #165DFF; }
+.spinner { animation: spin 1s linear infinite; }
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+.skeleton { background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 6px; }
+@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+</style>
+</head>
+<body class="bg-neutral min-h-screen font-sans text-dark">
+
+<!-- Header -->
+<header class="bg-white shadow-sm sticky top-0 z-50">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
+    <div class="flex items-center gap-2">
+      <i class="fa fa-file-text-o text-primary text-2xl"></i>
+      <h1 class="text-xl font-bold text-primary">智能求职 Agent</h1>
+      <span class="hidden sm:inline text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">AI驱动的简历优化与岗位匹配</span>
+    </div>
+    <div class="flex items-center gap-3 text-sm">
+      <span class="text-gray-400"><i class="fa fa-check-circle text-green-500 mr-1"></i>隐私安全</span>
+      <span class="text-gray-400"><i class="fa fa-bolt text-yellow-500 mr-1"></i>实时分析</span>
+    </div>
+  </div>
+</header>
+
+<main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+<!-- Step Indicator -->
+<div class="flex items-center justify-center mb-8 max-w-xl mx-auto" id="stepIndicator">
+  <div class="flex flex-col items-center step-active" id="step1El">
+    <div class="step-dot bg-primary text-white">1</div>
+    <span class="text-xs mt-1 text-primary font-medium">上传简历</span>
+  </div>
+  <div class="step-line active"></div>
+  <div class="flex flex-col items-center" id="step2El">
+    <div class="step-dot bg-gray-200 text-gray-500">2</div>
+    <span class="text-xs mt-1 text-gray-400">智能解析</span>
+  </div>
+  <div class="step-line"></div>
+  <div class="flex flex-col items-center" id="step3El">
+    <div class="step-dot bg-gray-200 text-gray-500">3</div>
+    <span class="text-xs mt-1 text-gray-400">匹配推荐</span>
+  </div>
+</div>
+
+<!-- Stage 1: Upload -->
+<div id="stageUpload" class="bg-white rounded-2xl p-8 card-shadow max-w-2xl mx-auto">
+  <h2 class="text-xl font-bold text-center mb-2">上传您的简历</h2>
+  <p class="text-center text-gray-400 mb-6">支持 PDF / Word / TXT 格式，拖拽或点击上传</p>
+  
+  <div class="upload-zone rounded-xl p-10 text-center cursor-pointer" id="uploadZone" onclick="document.getElementById('fileInput').click()">
+    <input type="file" id="fileInput" accept=".pdf,.docx,.doc,.txt" class="hidden" onchange="handleFileSelect(event)">
+    <i class="fa fa-cloud-upload text-5xl text-primary/30 mb-4"></i>
+    <p class="text-lg font-medium text-gray-600">拖拽简历文件到此处</p>
+    <p class="text-sm text-gray-400 mt-1">或点击选择文件</p>
+  </div>
+
+  <div id="fileInfo" class="hidden mt-4 flex items-center gap-3 bg-blue-50 rounded-lg p-4">
+    <i class="fa fa-file-pdf-o text-blue-500 text-2xl"></i>
+    <div class="flex-1">
+      <p id="fileName" class="font-medium text-dark"></p>
+      <p id="fileSize" class="text-xs text-gray-400"></p>
+    </div>
+    <i class="fa fa-check-circle text-green-500 text-xl"></i>
+  </div>
+
+  <div class="mt-4 text-sm text-gray-400 text-center">
+    <p>或直接粘贴简历内容：</p>
+    <textarea id="resumeText" rows="3" class="w-full border border-gray-200 rounded-lg p-3 mt-2 focus:outline-none focus:ring-2 focus:ring-primary/30 resize-none text-dark text-sm" placeholder="粘贴您的简历文本内容..."></textarea>
+  </div>
+
+  <button onclick="startAnalysis()" id="startBtn" class="w-full btn-gradient text-white py-3 rounded-lg font-medium mt-6 hover:scale-[1.01] transition flex items-center justify-center gap-2">
+    <i class="fa fa-rocket"></i> 开始智能分析
+  </button>
+</div>
+
+<!-- Stage 2: Loading -->
+<div id="stageLoading" class="hidden text-center py-12">
+  <div class="inline-flex items-center gap-3 bg-white rounded-2xl p-6 card-shadow">
+    <i class="fa fa-spinner fa-spin text-primary text-3xl"></i>
+    <div class="text-left">
+      <p class="font-semibold text-lg">AI 正在分析您的简历...</p>
+      <p id="loadingMsg" class="text-sm text-gray-400">正在解析简历内容</p>
+    </div>
+  </div>
+</div>
+
+<!-- Stage 3: Results -->
+<div id="stageResults" class="hidden space-y-8">
+
+  <!-- Row 1: Parsed Resume + Skill Analysis -->
+  <div class="grid md:grid-cols-2 gap-6">
+    <div class="bg-white rounded-2xl p-6 card-shadow">
+      <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
+        <i class="fa fa-user-circle-o text-primary"></i> 简历画像
+      </h3>
+      <div id="resumeProfile" class="space-y-3 text-sm"></div>
+    </div>
+
+    <div class="bg-white rounded-2xl p-6 card-shadow">
+      <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
+        <i class="fa fa-pie-chart text-primary"></i> 技能分析
+      </h3>
+      <div id="skillAnalysis" class="space-y-3 text-sm"></div>
+    </div>
+  </div>
+
+  <!-- Row 2: Top Match Card -->
+  <div class="bg-white rounded-2xl p-6 card-shadow">
+    <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
+      <i class="fa fa-star text-yellow-400"></i> 最佳匹配岗位
+    </h3>
+    <div id="topMatch" class="p-4 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl"></div>
+  </div>
+
+  <!-- Row 3: Company Recommendations -->
+  <div class="bg-white rounded-2xl p-6 card-shadow">
+    <div class="flex justify-between items-center mb-4">
+      <h3 class="text-lg font-semibold flex items-center gap-2">
+        <i class="fa fa-building-o text-primary"></i> 推荐公司 & 岗位
+      </h3>
+      <span id="jobCount" class="text-xs text-gray-400 bg-gray-50 px-3 py-1 rounded-full"></span>
+    </div>
+    <div class="flex gap-2 mb-4 flex-wrap" id="filterTabs"></div>
+    <div id="recommendList" class="grid md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+  </div>
+
+  <!-- Row 4: Optimized Resume -->
+  <div class="bg-white rounded-2xl p-6 card-shadow">
+    <div class="flex justify-between items-center mb-4">
+      <h3 class="text-lg font-semibold flex items-center gap-2">
+        <i class="fa fa-magic text-primary"></i> 优化后简历
+      </h3>
+      <div class="flex gap-2">
+        <button onclick="copyResume()" class="px-4 py-2 border border-primary text-primary rounded-lg text-sm hover:bg-primary/5 transition flex items-center gap-1">
+          <i class="fa fa-copy"></i> 复制
+        </button>
+        <button onclick="downloadTxt()" class="px-4 py-2 border border-gray-200 rounded-lg text-sm hover:bg-gray-50 transition flex items-center gap-1">
+          <i class="fa fa-download"></i> 下载TXT
+        </button>
+      </div>
+    </div>
+    <div id="optimizedResume" class="bg-gray-50 rounded-lg p-5 font-mono text-sm whitespace-pre-wrap min-h-[180px] max-h-[400px] overflow-y-auto"></div>
+    <div id="optimizationTips" class="mt-4 bg-orange-50 rounded-lg p-4 text-sm text-orange-700"></div>
+  </div>
+
+  <!-- Row 5: Industry Distribution + Trend Skills -->
+  <div class="grid md:grid-cols-2 gap-6">
+    <div class="bg-white rounded-2xl p-6 card-shadow">
+      <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
+        <i class="fa fa-industry text-primary"></i> 行业岗位分布
+      </h3>
+      <div id="industryDist" class="space-y-2"></div>
+    </div>
+    <div class="bg-white rounded-2xl p-6 card-shadow">
+      <h3 class="text-lg font-semibold mb-4 flex items-center gap-2">
+        <i class="fa fa-line-chart text-primary"></i> 市场热门技能
+      </h3>
+      <div id="trendSkills" class="space-y-2"></div>
+      <p class="text-xs text-gray-400 mt-3">这些技能在当前招聘市场中被频繁要求，建议补充学习</p>
+    </div>
+  </div>
+
+  <!-- Row 6: Actions -->
+  <div class="text-center">
+    <button onclick="resetAll()" class="px-8 py-3 border-2 border-gray-200 rounded-lg font-medium hover:border-primary hover:text-primary transition flex items-center gap-2 mx-auto">
+      <i class="fa fa-refresh"></i> 重新上传简历分析
+    </button>
+  </div>
+
+</div>
+
+</main>
+
+<footer class="bg-white mt-10 py-6 text-center text-gray-400 text-sm">
+  <p>智能简历优化 × 岗位匹配 × 投递导航系统 v1.0</p>
+</footer>
+
+<script>
+const API_BASE = 'http://localhost:8000/api';
+let currentData = null;
+let uploadedFile = null;
+
+// ====== Upload Handling ======
+const uploadZone = document.getElementById('uploadZone');
+uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
+uploadZone.addEventListener('drop', e => {
+  e.preventDefault();
+  uploadZone.classList.remove('drag-over');
+  const files = e.dataTransfer.files;
+  if (files.length > 0) handleFile(files[0]);
+});
+
+function handleFileSelect(event) {
+  const files = event.target.files;
+  if (files.length > 0) handleFile(files[0]);
+}
+
+function handleFile(file) {
+  const validExts = ['.pdf', '.docx', '.doc', '.txt'];
+  const ext = '.' + file.name.split('.').pop().toLowerCase();
+  if (!validExts.includes(ext)) {
+    alert('仅支持 PDF / Word / TXT 格式的简历文件');
+    return;
+  }
+  if (file.size > 50 * 1024 * 1024) {
+    alert('文件大小不能超过 50MB');
+    return;
+  }
+  uploadedFile = file;
+  document.getElementById('fileInfo').classList.remove('hidden');
+  document.getElementById('fileName').innerText = file.name;
+  document.getElementById('fileSize').innerText = (file.size / 1024).toFixed(1) + ' KB';
+  document.getElementById('resumeText').value = '';
+}
+
+// ====== Main Analysis Flow ======
+async function startAnalysis() {
+  if (!uploadedFile && !document.getElementById('resumeText').value.trim()) {
+    alert('请上传简历文件或粘贴简历内容');
+    return;
+  }
+
+  // Switch to loading stage
+  document.getElementById('stageUpload').classList.add('hidden');
+  document.getElementById('stageResults').classList.add('hidden');
+  document.getElementById('stageLoading').classList.remove('hidden');
+  updateStep(2, true);
+  updateLoadingMsg('正在解析简历内容...');
+
+  try {
+    const formData = new FormData();
+    if (uploadedFile) {
+      console.log('上传文件:', uploadedFile.name, '大小:', uploadedFile.size, '类型:', uploadedFile.type);
+      formData.append('file', uploadedFile, uploadedFile.name);
+    } else {
+      const text = document.getElementById('resumeText').value.trim();
+      console.log('使用文本内容, 长度:', text.length);
+      formData.append('resume_text', text);
+    }
+
+    // 检查 FormData 内容
+    for (let pair of formData.entries()) {
+      console.log('FormData 字段:', pair[0], pair[1] instanceof File ? 'File对象' : pair[1].substring(0, 50));
+    }
+
+    updateLoadingMsg('正在智能匹配岗位...');
+    const resp = await fetch(`${API_BASE}/analyze`, {
+      method: 'POST',
+      body: formData,
+      mode: 'cors'
+    });
+
+    console.log('响应状态:', resp.status, resp.statusText);
+
+    if (!resp.ok) {
+      const errText = await resp.text();
+      console.error('错误响应:', errText);
+      let errDetail;
+      try {
+        errDetail = JSON.parse(errText).detail;
+      } catch (e) {
+        errDetail = errText || '分析失败';
+      }
+      throw new Error(errDetail);
+    }
+    currentData = await resp.json();
+
+    updateLoadingMsg('正在生成优化建议...');
+    // Small delay for UX
+    await new Promise(r => setTimeout(r, 600));
+
+    // Render results
+    renderResumeProfile(currentData.parsed_resume);
+    renderSkillAnalysis(currentData.skill_analysis);
+    renderTopMatch(currentData.top_recommendations);
+    renderRecommendations(currentData.top_recommendations);
+    renderOptimizedResume(currentData.optimized_resume);
+    renderIndustryDist(currentData.industry_distribution);
+    renderTrendSkills(currentData.trend_skills);
+
+    // Show results
+    document.getElementById('stageLoading').classList.add('hidden');
+    document.getElementById('stageResults').classList.remove('hidden');
+    document.getElementById('jobCount').innerText = `共匹配 ${currentData.all_jobs_count} 个岗位`;
+    updateStep(3, false);
+
+  } catch (error) {
+    console.error('分析错误:', error);
+    document.getElementById('stageLoading').classList.add('hidden');
+    document.getElementById('stageUpload').classList.remove('hidden');
+    updateStep(1, false);
+
+    let errorMsg = error.message || '未知错误';
+    if (error.message === 'Failed to fetch') {
+      errorMsg = '无法连接到后端服务，请确保后端服务已启动（python start.py）\n\n如果问题持续，请尝试通过 HTTP 服务器访问本页面，而不是直接双击打开 HTML 文件。';
+    }
+
+    alert('分析失败：' + errorMsg);
+  }
+}
+
+function updateLoadingMsg(msg) {
+  document.getElementById('loadingMsg').innerText = msg;
+}
+
+function updateStep(activeStep, isProcessing) {
+  const steps = [document.getElementById('step1El'), document.getElementById('step2El'), document.getElementById('step3El')];
+  steps.forEach((el, i) => {
+    const dot = el.querySelector('.step-dot');
+    const label = el.querySelector('span');
+    el.classList.remove('step-active', 'step-done');
+    if (i < activeStep - 1) {
+      el.classList.add('step-done');
+      dot.className = 'step-dot bg-primary text-white';
+      label.className = 'text-xs mt-1 text-primary font-medium';
+    } else if (i === activeStep - 1) {
+      el.classList.add(isProcessing ? 'step-active' : 'step-done');
+      if (isProcessing) {
+        dot.innerHTML = '<i class="fa fa-spinner fa-spin"></i>';
+        dot.className = 'step-dot bg-primary text-white';
+      } else {
+        dot.innerHTML = (i + 1);
+        dot.className = 'step-dot bg-primary text-white';
+      }
+      label.className = 'text-xs mt-1 text-primary font-medium';
+    } else {
+      dot.innerHTML = (i + 1);
+      dot.className = 'step-dot bg-gray-200 text-gray-500';
+      label.className = 'text-xs mt-1 text-gray-400';
+    }
+  });
+}
+
+// ====== Render Functions ======
+function renderResumeProfile(profile) {
+  const pi = profile.personal_info || {};
+  const skills = profile.skills || [];
+  const projects = profile.projects || [];
+  const work = profile.work_experience || [];
+
+  const badgets = [];
+  if (pi.name) badgets.push({ icon: 'fa-user', label: pi.name });
+  if (pi.education) badgets.push({ icon: 'fa-graduation-cap', label: pi.education });
+  if (pi.school) badgets.push({ icon: 'fa-university', label: pi.school });
+  if (pi.major) badgets.push({ icon: 'fa-book', label: pi.major });
+  if (pi.target_city) badgets.push({ icon: 'fa-map-marker', label: pi.target_city });
+  if (pi.work_years) badgets.push({ icon: 'fa-briefcase', label: pi.work_years + '年经验' });
+  if (pi.email) badgets.push({ icon: 'fa-envelope', label: pi.email });
+  if (pi.phone) badgets.push({ icon: 'fa-phone', label: pi.phone });
+
+  let html = '<div class="flex flex-wrap gap-2 mb-4">';
+  badgets.forEach(b => {
+    html += `<span class="px-3 py-1.5 bg-gray-50 rounded-lg text-dark flex items-center gap-1.5"><i class="fa ${b.icon} text-primary text-xs"></i> ${b.label}</span>`;
+  });
+  html += '</div>';
+
+  if (skills.length > 0) {
+    html += '<p class="font-medium text-gray-600 mb-2">专业技能</p>';
+    html += '<div class="flex flex-wrap gap-1.5 mb-3">';
+    skills.slice(0, 10).forEach(s => {
+      html += `<span class="px-2 py-0.5 bg-primary/8 text-primary rounded text-xs">${s.skill_name}</span>`;
+    });
+    html += '</div>';
+  }
+
+  if (projects.length > 0) {
+    html += '<p class="font-medium text-gray-600 mb-2">项目经历</p>';
+    projects.slice(0, 3).forEach(p => {
+      html += `<p class="text-sm text-gray-500">${p.project_name}</p>`;
+    });
+  }
+
+  document.getElementById('resumeProfile').innerHTML = html || '<p class="text-gray-400">简历内容较少，建议补充更多信息</p>';
+}
+
+function renderSkillAnalysis(analysis) {
+  let html = '';
+
+  html += `<div class="flex justify-between items-center">
+    <span class="text-gray-500">已识别技能</span>
+    <span class="font-bold text-primary">${analysis.skill_count} 项</span>
+  </div>`;
+
+  html += '<div class="flex flex-wrap gap-1.5 mt-2">';
+  (analysis.your_skills || []).forEach(s => {
+    html += `<span class="px-2 py-0.5 bg-green-50 text-green-700 rounded text-xs">${s}</span>`;
+  });
+  html += '</div>';
+
+  if (analysis.suggested_skills && analysis.suggested_skills.length > 0) {
+    html += '<p class="text-gray-500 mt-3 mb-1">建议补充技能</p>';
+    html += '<div class="flex flex-wrap gap-1.5">';
+    analysis.suggested_skills.forEach(s => {
+      html += `<span class="px-2 py-0.5 bg-orange-50 text-orange-600 rounded text-xs">${s}</span>`;
+    });
+    html += '</div>';
+  }
+
+  html += `<div class="mt-3 pt-3 border-t border-gray-100">
+    <div class="flex justify-between">
+      <span class="text-gray-500">技能覆盖度</span>
+      <span class="font-bold text-primary">${analysis.skill_coverage}</span>
+    </div>
+    <div class="mt-2 w-full bg-gray-100 rounded-full h-2">
+      <div class="bg-primary h-2 rounded-full" style="width: ${analysis.skill_coverage}"></div>
+    </div>
+  </div>`;
+
+  document.getElementById('skillAnalysis').innerHTML = html;
+}
+
+function renderTopMatch(recommendations) {
+  if (!recommendations || recommendations.length === 0) {
+    document.getElementById('topMatch').innerHTML = '<p class="text-gray-400 text-center">暂无匹配岗位</p>';
+    return;
+  }
+  const top = recommendations[0];
+  const matchColor = top.match_score >= 60 ? 'text-green-600' : top.match_score >= 40 ? 'text-yellow-600' : 'text-orange-600';
+
+  let html = `<div class="flex flex-wrap items-start justify-between gap-4">
+    <div class="flex-1">
+      <div class="flex items-center gap-2 mb-1">
+        <h4 class="text-lg font-bold">${top.title}</h4>
+        <span class="px-2 py-0.5 text-xs rounded ${top.match_level === '精准匹配' ? 'bg-green-100 text-green-700' : top.match_level === '潜力匹配' ? 'bg-yellow-100 text-yellow-700' : 'bg-orange-100 text-orange-700'}">${top.match_level}</span>
+      </div>
+      <p class="text-gray-500">${top.company} · ${top.city || '全国'} · ${top.industry || ''}</p>
+      ${top.salary_range ? `<p class="text-gray-500">薪资：${top.salary_range}</p>` : ''}
+      <p class="text-sm text-gray-400 mt-2">${top.recommendation_reason}</p>
+    </div>
+    <div class="text-center">
+      <div class="text-4xl font-bold ${matchColor}">${top.match_score}<span class="text-lg">分</span></div>
+      <a href="${top.posting_url}" target="_blank" class="mt-3 inline-block px-5 py-2 btn-gradient text-white rounded-lg text-sm">前往投递 <i class="fa fa-external-link ml-1"></i></a>
+    </div>
+  </div>`;
+
+  document.getElementById('topMatch').innerHTML = html;
+}
+
+function renderRecommendations(recommendations) {
+  const container = document.getElementById('recommendList');
+  if (!recommendations || recommendations.length === 0) {
+    container.innerHTML = '<p class="text-gray-400 col-span-full text-center py-8">暂无推荐岗位</p>';
+    return;
+  }
+
+  // Filter tabs
+  const levels = ['全部', '精准匹配', '潜力匹配', '跨界匹配'];
+  document.getElementById('filterTabs').innerHTML = levels.map((l, i) => 
+    `<button class="px-3 py-1 rounded-full text-xs ${i === 0 ? 'bg-primary text-white' : 'bg-gray-100 text-gray-500'}" onclick="filterRecommendations('${l}', this)">${l}</button>`
+  ).join('');
+
+  window._allRecs = recommendations;
+  window._recFilter = '全部';
+  displayFilteredRecs();
+}
+
+function filterRecommendations(level, btn) {
+  window._recFilter = level;
+  document.querySelectorAll('#filterTabs button').forEach(b => {
+    b.className = 'px-3 py-1 rounded-full text-xs bg-gray-100 text-gray-500';
+  });
+  btn.className = 'px-3 py-1 rounded-full text-xs bg-primary text-white';
+  displayFilteredRecs();
+}
+
+function displayFilteredRecs() {
+  const container = document.getElementById('recommendList');
+  const recs = window._allRecs || [];
+  const filtered = window._recFilter === '全部' ? recs : recs.filter(r => r.match_level === window._recFilter);
+  
+  container.innerHTML = filtered.map(item => {
+    const matchColor = item.match_score >= 60 ? 'text-green-600' : item.match_score >= 40 ? 'text-yellow-600' : 'text-orange-600';
+    const badge = item.match_level === '精准匹配' ? 'bg-green-100 text-green-700' : 
+                  item.match_level === '潜力匹配' ? 'bg-yellow-100 text-yellow-700' : 'bg-orange-100 text-orange-700';
+    return `
+    <div class="border border-gray-200 rounded-xl p-5 hover:shadow-lg hover:border-primary/30 transition-all group">
+      <div class="flex justify-between items-start mb-2">
+        <div>
+          <h4 class="font-semibold text-dark group-hover:text-primary transition-colors">${item.title}</h4>
+          <p class="text-sm text-gray-500 mt-0.5">${item.company} · ${item.city || ''}</p>
+          <p class="text-xs text-gray-400 mt-0.5">${item.industry || ''} · ${item.company_size || ''}</p>
+        </div>
+        <span class="px-2 py-0.5 ${badge} text-xs rounded whitespace-nowrap">${item.match_level}</span>
+      </div>
+      <div class="flex items-baseline gap-1 mt-3">
+        <span class="${matchColor} font-bold text-xl">${item.match_score}</span>
+        <span class="text-xs text-gray-400">分</span>
+        ${item.salary_range ? `<span class="ml-auto text-xs text-gray-400">${item.salary_range}</span>` : ''}
+      </div>
+      <p class="text-xs text-gray-400 mt-2 leading-relaxed">${item.recommendation_reason}</p>
+      <div class="mt-4 flex gap-2">
+        <a href="${item.posting_url}" target="_blank" class="flex-1 text-center btn-gradient text-white py-2 rounded-lg text-sm hover:scale-[1.02] transition flex items-center justify-center gap-1">
+          <i class="fa fa-send"></i> 立即投递
+        </a>
+        ${item.referral_code ? `<button onclick="copyReferral('${item.referral_code}')" class="px-3 py-2 border border-gray-200 rounded-lg text-xs hover:bg-gray-50 transition flex items-center gap-1"><i class="fa fa-ticket"></i> 复制内推码</button>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+
+  if (filtered.length === 0) {
+    container.innerHTML = '<p class="text-gray-400 col-span-full text-center py-8">该级别暂无匹配岗位</p>';
+  }
+}
+
+function renderOptimizedResume(optimized) {
+  if (!optimized) {
+    document.getElementById('optimizedResume').innerHTML = '<p class="text-gray-400">匹配度较低，建议先补充核心技能后再优化简历</p>';
+    document.getElementById('optimizationTips').innerHTML = '';
+    return;
+  }
+  document.getElementById('optimizedResume').innerText = optimized.optimized_resume || '暂无优化结果';
+
+  let tipsHtml = '<p class="font-medium">优化建议：</p><ul class="list-disc list-inside space-y-1 mt-2">';
+  (optimized.suggestions || []).forEach(s => {
+    tipsHtml += `<li>${s}</li>`;
+  });
+  tipsHtml += '</ul>';
+
+  // Interview questions
+  if (optimized.interview_questions && optimized.interview_questions.length > 0) {
+    tipsHtml += '<p class="font-medium mt-3 pt-3 border-t border-orange-200">面试预测问题：</p><ul class="list-disc list-inside space-y-1 mt-2">';
+    optimized.interview_questions.forEach(q => {
+      tipsHtml += `<li class="text-orange-700/80">${q}</li>`;
+    });
+    tipsHtml += '</ul>';
+  }
+
+  document.getElementById('optimizationTips').innerHTML = tipsHtml;
+}
+
+function renderIndustryDist(dist) {
+  const total = Object.values(dist || {}).reduce((a, b) => a + b, 0) || 1;
+  let html = '';
+  const colors = ['#165DFF', '#36CFC9', '#FF7D00', '#F53F3F', '#7B61FF', '#00B42A'];
+  let i = 0;
+  for (const [industry, count] of Object.entries(dist || {})) {
+    const pct = ((count / total) * 100).toFixed(1);
+    html += `<div class="flex items-center gap-3">
+      <span class="text-sm text-gray-600 w-20">${industry}</span>
+      <div class="flex-1 bg-gray-100 rounded-full h-2.5">
+        <div class="h-2.5 rounded-full" style="width: ${pct}%; background: ${colors[i % colors.length]}"></div>
+      </div>
+      <span class="text-sm text-gray-400 w-12 text-right">${count}个</span>
+    </div>`;
+    i++;
+  }
+  document.getElementById('industryDist').innerHTML = html || '<p class="text-gray-400">暂无数据</p>';
+}
+
+function renderTrendSkills(skills) {
+  if (!skills || skills.length === 0) {
+    document.getElementById('trendSkills').innerHTML = '<p class="text-gray-400">暂无数据</p>';
+    return;
+  }
+  const maxCount = skills[0][1] || 1;
+  let html = '';
+  skills.forEach(([skill, count]) => {
+    const pct = (count / maxCount * 100).toFixed(0);
+    html += `<div class="flex items-center gap-3">
+      <span class="text-sm text-gray-600 w-24">${skill}</span>
+      <div class="flex-1 bg-gray-100 rounded-full h-2">
+        <div class="bg-orange-400 h-2 rounded-full" style="width: ${pct}%"></div>
+      </div>
+      <span class="text-xs text-gray-400">${count}个岗位要求</span>
+    </div>`;
+  });
+  document.getElementById('trendSkills').innerHTML = html;
+}
+
+// ====== Utilities ======
+function copyResume() {
+  const text = document.getElementById('optimizedResume').innerText;
+  if (!text || text.includes('暂无优化结果') || text.includes('匹配度较低')) {
+    alert('暂无优化后的简历可复制');
+    return;
+  }
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = event.target.closest('button');
+    const orig = btn.innerHTML;
+    btn.innerHTML = '<i class="fa fa-check"></i> 已复制';
+    btn.classList.add('text-green-600', 'border-green-600');
+    setTimeout(() => { btn.innerHTML = orig; btn.classList.remove('text-green-600', 'border-green-600'); }, 2000);
+  });
+}
+
+function downloadTxt() {
+  const text = document.getElementById('optimizedResume').innerText;
+  if (!text || text.includes('暂无优化结果') || text.includes('匹配度较低')) {
+    alert('暂无优化后的简历可下载');
+    return;
+  }
+  const blob = new Blob([text], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = '优化简历.txt';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function copyReferral(code) {
+  navigator.clipboard.writeText(code).then(() => alert('内推码已复制：' + code));
+}
+
+function resetAll() {
+  uploadedFile = null;
+  currentData = null;
+  document.getElementById('fileInput').value = '';
+  document.getElementById('resumeText').value = '';
+  document.getElementById('fileInfo').classList.add('hidden');
+  document.getElementById('stageResults').classList.add('hidden');
+  document.getElementById('stageLoading').classList.add('hidden');
+  document.getElementById('stageUpload').classList.remove('hidden');
+  updateStep(1, false);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+</script>
+
+</body>
+</html>
